@@ -1,0 +1,102 @@
+
+建立 Docker Network
+docker network create sky_net
+
+
+安裝 Docker Container
+
+docker run -it --name sky --network sky_net -p 80:80 -p 443:443 ubuntu:22.04 bash
+docker run -d --name sky_mongo --network sky_net -v D:\sky_docker_mongodb:/data/db mongo:8.0
+
+
+
+開啟
+
+docker exec -it <container_id_or_name> bash
+ex. docker exec -it 5822f574cd79ca1b9556ca99139db6ebdd7ac7e7f408875c9d32079478761c4b bash
+
+
+停止
+docker stop <container_id_or_name>
+
+離開
+
+exit
+
+匯出容器為 .tar 檔
+docker commit <container_id_or_name> sky_image:latest
+docker save -o sky_image.tar sky_image:latest
+
+從 .tar 匯入成新容器
+docker load -i sky_image.tar
+
+以相同的 network 與 volume 運行：
+docker network create sky_net
+docker run -d --name sky_mongo --network sky_net -v D:\sky_docker_mongodb:/data/db mongo:8.0
+docker run -it --name sky --network sky_net -p 80:80 -p 443:443 sky_image:latest
+
+
+---------------------------------------------------------
+設置主專案 Docker 環境
+
+apt update && apt upgrade -y
+
+--
+安裝 Node.js 與 npm
+
+apt install -y curl
+
+curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+apt install -y nodejs
+
+檢查 node 和 npm 版本
+node -v
+npm -v
+
+--
+安裝常用套件
+
+apt update
+apt install -y git
+
+apt update
+apt install -y nano
+
+apt-get update
+apt-get install -y lsof
+
+安裝專案
+git clone https://github.com/SCLemon/sky_deploy.git
+
+
+
+啟動
+bash start.sh
+
+關閉
+bash stop.sh
+
+---------------------------------------------------------
+PORT 常用語法
+
+sudo lsof -i :80
+
+sudo kill -9 <PID>
+
+---------------------------------------------------------
+Windows 防火牆設定
+
+按 Win + R → 輸入 wf.msc → Enter
+左側選 入站規則 (Inbound Rules)
+右側選 新增規則 (New Rule...)
+選 Port (連接埠) → 下一步
+選 TCP，輸入 特定本地端口：
+
+80, 443
+
+選 允許連線 (Allow the connection) → 下一步
+勾選 Domain / Private / Public（依你的需求，一般勾全部） → 下一步
+給規則取個名字，例如：Docker Web Ports → 完成
+---------------------------------------------------------
+進入路由器設定 PORT Forwarding 和 IP Reservation
+---------------------------------------------------------
