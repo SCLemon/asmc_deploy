@@ -9,6 +9,10 @@ app.use(compression());
 app.set('trust proxy', 'loopback, 192.168.0.1'); 
 
 
+const { initialize } = require('./utils/initialize')
+
+initialize();
+
 const rateLimit = require('express-rate-limit');
 
 // 不受限速
