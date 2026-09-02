@@ -2,9 +2,9 @@
 set -e
 
 # 移除舊版本
-if [ -d "web_deploy" ]; then
-  echo "Removing previous version of web_deploy..."
-  rm -rf web_deploy
+if [ -d "asmc_deploy" ]; then
+  echo "Removing previous version of asmc_deploy..."
+  rm -rf asmc_deploy
 fi
 
 # 下載新版
