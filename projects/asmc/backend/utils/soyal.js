@@ -6,7 +6,7 @@ const key = 'U3VwZXJBZG06NzIxNTY4'
 const system = {
     '001': {
         label:'R212-1',
-        ip: 'http://192.168.0.100',
+        ip: 'http://192.168.0.5',
     },
     '002': {
         label:'R212-2',
@@ -15,6 +15,10 @@ const system = {
     '003': {
         label:'R108',
         ip: 'http://192.168.0.3',
+    },
+    '004': {
+        label:'R209',
+        ip: 'http://192.168.0.4',
     }
 }
 
@@ -31,15 +35,13 @@ async function wakeup(systemId) {
                 timeout: 5000
             }
         );
-
+        
         return true;
 
-    } catch (e) {
-
+    } 
+    catch (e) {
         console.log(`System ${systemId} Offline`);
-
         return false;
-
     }
 
 }
@@ -384,6 +386,5 @@ async function getEventLog(systemId, page) {
 module.exports = {
     addUser, deleteUser, getUserList, getEventLog, system
 }
-
 
 

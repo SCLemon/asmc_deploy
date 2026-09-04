@@ -87,6 +87,9 @@ app.use(reservationByUserRouter)
 const reservationRecordByUserRouter = require('./routes/byUser/settingRoutes/reservationRecordRouter');
 app.use(reservationRecordByUserRouter)
 
+const cloudByUserRouter = require('./routes/byUser/cloudRouter');
+app.use(cloudByUserRouter)
+
 
 // global
 const settingsRouter = require('./routes/settingsRouter');
