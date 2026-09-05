@@ -7,9 +7,9 @@ if [ -d "asmc_deploy" ]; then
   rm -rf asmc_deploy
 fi
 
-# 下載新版
+# 下載最新版本
 echo "Downloading the latest version of asmc_deploy..."
-if ! git clone https://github.com/SCLemon/asmc_deploy.git; then
+if ! git clone --depth 1 https://github.com/SCLemon/asmc_deploy.git; then
   echo "❌ Git clone failed."
   exit 1
 fi
@@ -24,7 +24,5 @@ cd projects
 echo "Installing npm packages for backend for asmc..."
 cd asmc/backend
 npm install --legacy-peer-deps
+
 cd ../../
-
-
-
