@@ -400,8 +400,6 @@ router.post('/api/equipmentSetting/admin/getSpecificReservationData', authMiddle
         startDate.setHours(0, 0, 0, 0);
         endDate.setHours(0, 0, 0, 0);
 
-        const weekList = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
-
         // 找出所有 reservation 中的 user token
         const userTokens = [
             ...new Set(
@@ -441,6 +439,8 @@ router.post('/api/equipmentSetting/admin/getSpecificReservationData', authMiddle
             };
         });
 
+        const weekList = ['日', '一', '二', '三', '四', '五', '六'];
+
         const output = [];
 
         const currentDate = new Date(startDate);
@@ -452,6 +452,12 @@ router.post('/api/equipmentSetting/admin/getSpecificReservationData', authMiddle
             const day = String(currentDate.getDate()).padStart(2, '0');
 
             const dateString = `${year}-${month}-${day}`;
+
+            // 顯示格式：9/1 （日）
+            const displayMonth = currentDate.getMonth() + 1;
+            const displayDay = currentDate.getDate();
+
+            const title = `${displayMonth}/${displayDay} (${weekList[currentDate.getDay()]})`;
 
             const date_period = [];
 
@@ -475,7 +481,7 @@ router.post('/api/equipmentSetting/admin/getSpecificReservationData', authMiddle
             }
 
             output.push({
-                title: weekList[currentDate.getDay()],
+                title,
                 date: dateString,
                 date_period
             });

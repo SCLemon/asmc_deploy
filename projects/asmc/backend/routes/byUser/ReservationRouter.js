@@ -113,7 +113,9 @@ router.post('/api/reservation/user/getSpecificReservationData', authMiddleware(0
         startDate.setHours(0, 0, 0, 0);
         endDate.setHours(0, 0, 0, 0);
 
-        const weekList = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+        if (req.user.level >= 7) { // 提前開放一天
+            endDate.setDate(endDate.getDate() + 1);
+        }
 
         const reservationMap = {};
 
@@ -131,9 +133,13 @@ router.post('/api/reservation/user/getSpecificReservationData', authMiddleware(0
             };
         });
 
+        const weekList = ['日', '一', '二', '三', '四', '五', '六'];
+
         const output = [];
 
         const currentDate = new Date(startDate);
+
+        let dayIndex = 0;
 
         while (currentDate <= endDate) {
 
@@ -142,6 +148,11 @@ router.post('/api/reservation/user/getSpecificReservationData', authMiddleware(0
             const day = String(currentDate.getDate()).padStart(2, '0');
 
             const dateString = `${year}-${month}-${day}`;
+
+            const displayMonth = currentDate.getMonth() + 1;
+            const displayDay = currentDate.getDate();
+
+            let title = `${displayMonth}/${displayDay} (${(dayIndex == 7) ? '提前開放' :weekList[currentDate.getDay()]})`;
 
             const date_period = [];
 
@@ -159,12 +170,13 @@ router.post('/api/reservation/user/getSpecificReservationData', authMiddleware(0
             }
 
             output.push({
-                title: weekList[currentDate.getDay()],
+                title,
                 date: dateString,
                 date_period
             });
 
             currentDate.setDate(currentDate.getDate() + 1);
+            dayIndex++;
         }
 
         return res.send({
