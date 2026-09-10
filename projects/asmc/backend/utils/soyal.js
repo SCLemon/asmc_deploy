@@ -22,12 +22,55 @@ const system = {
     }
 }
 
+async function wakeupAll() {
+
+    const results = {};
+
+    const systemIds = Object.keys(system);
+
+    await Promise.all(
+        systemIds.map(async (systemId) => {
+
+            try {
+
+                await axios.get(`${system[systemId].ip}/userlist.htm`,
+                    {
+                        headers: {
+                            Authorization: `Basic ${key}`
+                        },
+                        timeout: 5000
+                    }
+                );
+
+                results[systemId] = {
+                    label: system[systemId].label,
+                    online: true
+                };
+
+            }
+            catch (e) {
+
+                console.log(`System ${systemId} Offline`);
+
+                results[systemId] = {
+                    label: system[systemId].label,
+                    online: false
+                };
+
+            }
+
+        })
+    );
+
+    return results;
+}
+
+
 async function wakeup(systemId) {
 
     try {
 
-        await axios.get(
-            `${system[systemId].ip}/userlist.htm`,
+        await axios.get(`${system[systemId].ip}/userlist.htm`,
             {
                 headers: {
                     Authorization: `Basic ${key}`
@@ -91,7 +134,6 @@ async function addUser(systemId, uAddr, uName, uid1, uid2) {
 
     } 
     catch (e) {
-        console.log(e);
         return {
             message: '門禁用戶新增/修改失敗。',
             type: 'error'
@@ -144,8 +186,6 @@ async function deleteUser(systemId, uAddr) {
 
     } 
     catch (e) {
-
-        console.log(e);
 
         return {
             message: '門禁用戶刪除失敗。',
@@ -246,8 +286,6 @@ async function getUserList(systemId, uAddr) {
 
     } 
     catch (e) {
-
-        console.log(e);
 
         return {
             message: '門禁用戶列表獲取失敗。',
@@ -370,8 +408,6 @@ async function getEventLog(systemId, page) {
 
     } catch (e) {
 
-        console.log(e);
-
         return {
             message: '取得 Event Log 失敗。',
             data: [],
@@ -384,7 +420,7 @@ async function getEventLog(systemId, page) {
 
 
 module.exports = {
-    addUser, deleteUser, getUserList, getEventLog, system
+    addUser, deleteUser, getUserList, getEventLog, system, wakeupAll
 }
 
 

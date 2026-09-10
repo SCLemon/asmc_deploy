@@ -96,16 +96,43 @@ router.post('/api/reservation/user/getSpecificReservationData', authMiddleware(0
     const { targetEquipment, date } = req.body;
 
     if (!targetEquipment || !date || date.length !== 2) {
-        return res.send({ type:'error', data: [], message:'請求資料不完整。'});
+        return res.send({
+            type: 'error',
+            data: [],
+            message: '請求資料不完整。'
+        });
     }
 
     try {
 
-        const equipment = await equipmentModel.findOne({ token: targetEquipment, status: true, isDeleted: false, users: req.user.token });
 
-        if(!equipment){
-            return res.send({ type:'error', data: [], message:'儀器資料不存在。'});
+        const equipment = await equipmentModel.findOne({
+            token: targetEquipment,
+            status: true,
+            isDeleted: false,
+            users: req.user.token
+        }).lean();
+
+        if (!equipment) {
+            return res.send({
+                type: 'error',
+                data: [],
+                message: '儀器資料不存在。'
+            });
         }
+
+        const userTokens = [
+            ...new Set(equipment.reservation.map(item => item.user).filter(Boolean))
+        ];
+
+
+        const users = await userModel.find({
+            token: { $in: userTokens }
+        }).select('token name').lean();
+
+
+        const userMap = new Map(users.map(user => [user.token, user.name]));
+
 
         const startDate = new Date(date[0]);
         const endDate = new Date(date[1]);
@@ -113,9 +140,11 @@ router.post('/api/reservation/user/getSpecificReservationData', authMiddleware(0
         startDate.setHours(0, 0, 0, 0);
         endDate.setHours(0, 0, 0, 0);
 
-        if (req.user.level >= 7) { // 提前開放一天
+        if (req.user.lab == equipment.asset) {
+            // 提前開放一天
             endDate.setDate(endDate.getDate() + 1);
         }
+
 
         const reservationMap = {};
 
@@ -129,14 +158,16 @@ router.post('/api/reservation/user/getSpecificReservationData', authMiddleware(0
                 reserveId: item.reserveId,
                 reserve_period: item.reserve_period,
                 status: item.status,
-                isMine: item.user == req.user.token
+                isMine: item.user == req.user.token,
+                userName: userMap.get(item.user) || ''
             };
+
         });
+
 
         const weekList = ['日', '一', '二', '三', '四', '五', '六'];
 
         const output = [];
-
         const currentDate = new Date(startDate);
 
         let dayIndex = 0;
@@ -144,15 +175,20 @@ router.post('/api/reservation/user/getSpecificReservationData', authMiddleware(0
         while (currentDate <= endDate) {
 
             const year = currentDate.getFullYear();
+
             const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+
             const day = String(currentDate.getDate()).padStart(2, '0');
 
             const dateString = `${year}-${month}-${day}`;
 
             const displayMonth = currentDate.getMonth() + 1;
+
             const displayDay = currentDate.getDate();
 
-            let title = `${displayMonth}/${displayDay} (${(dayIndex == 7) ? '提前開放' :weekList[currentDate.getDay()]})`;
+
+            let title = `${displayMonth}/${displayDay} (${dayIndex == 7 ? '提前開放' : weekList[currentDate.getDay()]})`;
+
 
             const date_period = [];
 
@@ -160,39 +196,46 @@ router.post('/api/reservation/user/getSpecificReservationData', authMiddleware(0
 
                 const period = `${String(hour).padStart(2, '0')}:00`;
 
+
                 date_period.push(
-                    reservationMap[dateString]?.[period] || {
+
+                    reservationMap[dateString]?.[period] ||
+                    {
                         reserveId: '',
                         reserve_period: period,
                         status: 0,
+                        isMine: false,
+                        userName: ''
                     }
+
                 );
+
             }
 
-            output.push({
-                title,
-                date: dateString,
-                date_period
-            });
-
+            output.push({ title, date: dateString, date_period });
             currentDate.setDate(currentDate.getDate() + 1);
+
             dayIndex++;
+
         }
 
         return res.send({
-            type:'success',
+            type: 'success',
             data: output,
-            message:'儀器預約資料獲取成功！'
+            message: '儀器預約資料獲取成功！'
         });
-        
-    } catch (e) {
-        console.log(e);
 
+
+    }
+    catch (e) {
+
+        console.log(e);
         return res.send({
-            type:'error',
+            type: 'error',
             data: [],
-            message:'伺服器錯誤，請洽客服人員協助。'
+            message: '伺服器錯誤，請洽客服人員協助。'
         });
+
     }
 
 });

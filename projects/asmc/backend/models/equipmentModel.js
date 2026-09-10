@@ -25,6 +25,10 @@ const equipmentSchema = new mongoose.Schema({
         type: Number,
         default: 0,
     },
+    asset:{ // 財產歸屬實驗室 lab
+        type: String,
+        default: '',
+    },
     superUser:{ // superUser token
         type: String,
         trim: true,

@@ -9,7 +9,7 @@ const userModel = require('../../../models/userModel');
 
 const authMiddleware = require('../../../middleware/auth.middleware');
 
-const { addUser, deleteUser, getUserList, getEventLog, system } = require('../../../utils/soyal');
+const { addUser, deleteUser, getUserList, getEventLog, system, wakeupAll } = require('../../../utils/soyal');
 
 const { addToQueue } = require('../../../utils/soyalQueue');
 
@@ -33,6 +33,27 @@ router.get('/api/door-access-control/admin/getDevice', authMiddleware(10), async
         return res.send({
             type:'error',
             data: [],
+            message:'伺服器錯誤，請洽客服人員協助。'
+        });
+    }
+
+});
+
+// 預先喚醒
+router.get('/api/door-access-control/admin/wakeupAll', authMiddleware(10), async (req, res) => {
+
+    await wakeupAll();
+
+    try{
+        return res.send({
+            type:'success',
+            message:'裝置預先喚醒成功。' 
+        });
+    }
+    catch(e){
+        console.log(e)
+        return res.send({
+            type:'error',
             message:'伺服器錯誤，請洽客服人員協助。'
         });
     }

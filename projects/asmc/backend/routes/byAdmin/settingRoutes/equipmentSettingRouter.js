@@ -6,7 +6,7 @@ const router = express.Router();
 
 const userModel = require('../../../models/userModel');
 const equipmentModel = require('../../../models/equipmentModel');
-
+const labModel = require('../../../models/labModel');
 const {format} = require('date-fns');
 const { v4: uuidv4 } = require('uuid');
 
@@ -118,7 +118,7 @@ router.post('/api/equipmentSetting/admin/register', authMiddleware(10), async (r
 // 修改儀器資訊 -- ok
 router.post('/api/equipmentSetting/admin/revise', authMiddleware(10), async (req, res) => {
 
-    let { targetEquipment, name, rate, superUser, users } = req.body;
+    let { targetEquipment, name, rate, asset, superUser, users } = req.body;
 
     if (!name || !Number.isInteger(rate)) {
         return res.send({ type:'error', message:'修改資料不可為空。'});
@@ -152,6 +152,7 @@ router.post('/api/equipmentSetting/admin/revise', authMiddleware(10), async (req
 
         equipment.name = name;
         equipment.rate = rate;
+        equipment.asset = asset;
         equipment.superUser = superUser;
         equipment.users = users;
 
@@ -344,35 +345,6 @@ router.post('/api/equipmentSetting/admin/delete', authMiddleware(10), async (req
         });
     }
 });
-
-// 獲取 User 選項
-router.get('/api/equipmentSetting/admin/getUserList', authMiddleware(10), async (req, res) => {
-
-    try {
-        const users = await userModel.find({})
-        const output = users.map((user) =>{
-            return {
-                key: user.token,
-                value: user.token,
-                label: user.name,
-            }
-        })
-
-        return res.send({
-            type:'success',
-            data: output,
-            message:'人員列表獲取成功！'
-        });
-        
-    } catch (e) {
-        console.log(e)
-        return res.send({
-            type:'error',
-            message:'伺服器錯誤，請洽客服人員協助。'
-        });
-    }
-});
-
 
 // 獲取預約狀態
 router.post('/api/equipmentSetting/admin/getSpecificReservationData', authMiddleware(10), async (req, res) => {
@@ -572,6 +544,62 @@ router.post('/api/equipmentSetting/admin/handleReserve', authMiddleware(10), asy
         });
     }
 
+});
+
+// 獲取 User 選項
+router.get('/api/equipmentSetting/admin/getUserList', authMiddleware(10), async (req, res) => {
+
+    try {
+        const users = await userModel.find({})
+        const output = users.map((user) =>{
+            return {
+                key: user.token,
+                value: user.token,
+                label: user.name,
+            }
+        })
+
+        return res.send({
+            type:'success',
+            data: output,
+            message:'人員列表獲取成功！'
+        });
+        
+    } catch (e) {
+        console.log(e)
+        return res.send({
+            type:'error',
+            message:'伺服器錯誤，請洽客服人員協助。'
+        });
+    }
+});
+
+// 獲取 Lab 選項
+router.get('/api/equipmentSetting/admin/getLabList', authMiddleware(10), async (req, res) => {
+
+    try {
+        const labs = await labModel.find({})
+        const output = labs.map((lab) =>{
+            return {
+                key: lab.token,
+                value: lab.token,
+                label: lab.name,
+            }
+        })
+
+        return res.send({
+            type:'success',
+            data: output,
+            message:'實驗室列表獲取成功！'
+        });
+        
+    } catch (e) {
+        console.log(e)
+        return res.send({
+            type:'error',
+            message:'伺服器錯誤，請洽客服人員協助。'
+        });
+    }
 });
 
 module.exports = router;

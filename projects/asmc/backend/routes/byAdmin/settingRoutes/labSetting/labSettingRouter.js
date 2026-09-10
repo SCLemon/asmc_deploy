@@ -68,6 +68,17 @@ router.get('/api/labSetting/admin/getData', authMiddleware(10), async (req, res)
             });
 
         });
+        
+        // 統計各個 Lab 的儀器數量
+        const equipmentCountsMap = {};
+
+        equipments.forEach((equipment) => {
+
+            if (!equipment.asset) return;
+
+            equipmentCountsMap[equipment.asset] = (equipmentCountsMap[equipment.asset] || 0) + 1;
+
+        });
 
         const output = labs.map((lab) => {
             return {
@@ -77,6 +88,7 @@ router.get('/api/labSetting/admin/getData', authMiddleware(10), async (req, res)
                 status: lab.status,
                 detailed: lab.detailed,
                 memberCounts: memberCountsMap[lab.token] || 0,
+                equipmentCounts: equipmentCountsMap[lab.token] || 0,
                 unpaid: unpaidMap[lab.token] || 0
             };
         });
@@ -254,6 +266,12 @@ router.post('/api/labSetting/admin/delete', authMiddleware(10), async (req, res)
         const labMemberCount = await userModel.countDocuments({ lab: targetLab });
         if (labMemberCount > 0) {
             return res.send({ type: 'error', message: `實驗室刪除失敗，尚有 ${labMemberCount} 位成員。`});
+        }
+
+        // 檢查該 Lab 是否還有 equipment 尚未交接
+        const equipmentCount = await equipmentModel.countDocuments({ asset: targetLab });
+        if (equipmentCount > 0) {
+            return res.send({ type: 'error', message: `實驗室刪除失敗，尚有 ${equipmentCount} 機台尚未處理。`});
         }
 
         // 確認無成員後刪除 Lab
