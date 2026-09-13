@@ -275,9 +275,9 @@ router.put('/api/cloud/user/rename', authMiddleware(7), async (req, res) => {
 
     try {
 
-        const cloud = await cloudModel.findOne({ token: targetCloud });
+        const cloud = await cloudModel.findOne({ token: targetCloud, owner: req.user.token });
 
-        if (!cloud) return res.send({ type: 'error', message: '檔案或資料夾不存在。' });
+        if (!cloud) return res.send({ type: 'error', message: '檔案或資料夾重新命名失敗。' });
 
 
 
@@ -344,9 +344,9 @@ router.put('/api/cloud/user/delete', authMiddleware(7), async (req, res) => {
 
     try {
 
-        const cloud = await cloudModel.findOne({ token: targetCloud });
+        const cloud = await cloudModel.findOne({ token: targetCloud, owner: req.user.token });
 
-        if (!cloud) return res.send({ type: 'error', message: '檔案或資料夾不存在。' });
+        if (!cloud) return res.send({ type: 'error', message: '檔案或資料夾刪除失敗。' });
 
         // 遞迴取得所有子項目
         const getChildren = async (parent) => {
