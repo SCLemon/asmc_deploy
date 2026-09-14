@@ -18,6 +18,8 @@ const { format } = require('date-fns');
 const cloudModel = require('../../models/cloudModel')
 const { ZipArchive } = require('archiver');
 
+const { createFolder, deleteCloudItem } = require('../../utils/cloudService');
+
 // 獲取 Cloud 資料
 router.post('/api/cloud/user/getData', authMiddleware(7), async (req, res) => {
     const { parent, keyword } = req.body;
@@ -230,72 +232,37 @@ router.post('/api/cloud/user/upload', authMiddleware(7), upload.single('file'), 
     }
 );
 
-// 建立資料夾 -- ok
+// 建立資料夾
 router.post('/api/cloud/user/createFolder', authMiddleware(7), async (req, res) => {
-
     const { name, parent } = req.body;
 
-    if (!name) return res.send({ type: 'error', message: '資料夾名稱不可為空。' });
-
     try {
+        const result = await createFolder({
+            name,
+            parent,
+            owner: req.user.token
+        });
 
-        // 檢查父資料夾
-        if (parent) {
-
-            const parentFolder = await cloudModel.findOne({ token: parent, type: 'folder' });
-
-            if (!parentFolder) return res.send({ type: 'error', message: '上層資料夾不存在。' });
-
+        if (!result.success) {
+            return res.send({ type: 'error', message: result.message });
         }
-
-        // 檢查同一層是否重名
-        const existingFolder = await cloudModel.findOne({
-            parent: parent || null,
-            name,
-            type: 'folder'
-        });
-
-        if (existingFolder) return res.send({ type: 'error', message: '資料夾已存在。' });
-
-        const folder = new cloudModel({
-
-            token: uuidv4(),
-
-            name,
-
-            type: 'folder',
-
-            parent: parent || null,
-
-            owner: req.user.token,
-
-            createTime: format(new Date(), 'yyyy-MM-dd HH:mm:ss')
-
-        });
-
-        await folder.save();
 
         return res.send({
             type: 'success',
-            data: folder,
-            message: '資料夾建立成功。'
+            data: result.data,
+            message: result.message
         });
-
     } catch (e) {
-
         console.log(e);
-
         return res.send({
             type: 'error',
             message: '伺服器錯誤，請洽客服人員協助。'
         });
-
     }
-
 });
 
 
-// 修改 Cloud 名稱 -- ok
+// 修改 Cloud 名稱
 router.put('/api/cloud/user/rename', authMiddleware(7), async (req, res) => {
 
     const { targetCloud, name } = req.body;
@@ -371,88 +338,23 @@ router.put('/api/cloud/user/rename', authMiddleware(7), async (req, res) => {
 
 // 刪除 Cloud
 router.put('/api/cloud/user/delete', authMiddleware(7), async (req, res) => {
-
     const { targetCloud } = req.body;
 
-    if (!targetCloud) return res.send({ type: 'error', message: '資料不可為空。' });
-
     try {
+        const result = await deleteCloudItem(targetCloud, req.user.token);
 
-        const cloud = await cloudModel.findOne({ token: targetCloud, owner: req.user.token });
-
-        if (!cloud) return res.send({ type: 'error', message: '檔案或資料夾刪除失敗。' });
-
-        // 遞迴取得所有子項目
-        const getChildren = async (parent) => {
-
-            const children = await cloudModel.find({ parent }).lean();
-
-            let items = [];
-
-            for (const child of children) {
-
-                items.push(child);
-
-                // 如果是資料夾，繼續尋找底下的項目
-                if (child.type === 'folder') {
-                    items.push(...await getChildren(child.token));
-                }
-
-            }
-
-            return items;
-        };
-
-        let deleteItems = [cloud];
-
-        // 如果是資料夾，連同所有子項目一起刪除
-        if (cloud.type === 'folder') {
-            deleteItems.push(...await getChildren(targetCloud));
+        if (!result.success) {
+            return res.send({ type: 'error', message: result.message });
         }
 
-        // 找出所有需要刪除的實體檔案
-        const filePaths = deleteItems.filter((item) => item.type === 'file' && item.file?.path).map((item) => item.file.path);
-
-        // 刪除 Cloud 資料
-        await cloudModel.deleteMany({
-            token: {
-                $in: deleteItems.map((item) => item.token)
-            }
-        });
-
-        // 刪除本地實體檔案
-        await Promise.all(
-            filePaths.map(async (filePath) => {
-
-                try {
-
-                    await fs.promises.unlink(filePath);
-
-                } catch (e) {
-
-                    // 檔案不存在時忽略
-                    if (e.code !== 'ENOENT') {
-                        console.log(`檔案刪除失敗：${filePath}`, e);
-                    }
-
-                }
-
-            })
-        );
-
-        return res.send({ type: 'success',  message: '刪除成功。'});
-
+        return res.send({ type: 'success', message: result.message });
     } catch (e) {
-
         console.log(e);
-
         return res.send({
             type: 'error',
             message: '伺服器錯誤，請洽客服人員協助。'
         });
-
     }
-
 });
 
 

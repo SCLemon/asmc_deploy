@@ -6,13 +6,13 @@ const router = express.Router();
 
 const labModel = require('../../models/labModel');
 const userModel = require('../../models/userModel');
-const equipmentModel = require('../../models/equipmentModel');
 const experimentRecordModel = require('../../models/experimentRecordModel');
-
+const cloudModel = require('../../models/cloudModel');
 const {format} = require('date-fns');
 const { v4: uuidv4 } = require('uuid');
 
 const authMiddleware = require('../../middleware/auth.middleware');
+const { createFolder, deleteCloudItem } = require('../../utils/cloudService');
 
 
 // 獲取計畫列表
@@ -32,7 +32,9 @@ router.get('/api/experimentRecords/user/getData', authMiddleware(7), async (req,
                 createTime: experimentRecord.createTime,
                 token: experimentRecord.token,
                 name: experimentRecord.name,
-                owner: userMap.get(experimentRecord.owner) || ''
+                rate: experimentRecord.rate ?? 0,
+                owner: userMap.get(experimentRecord.owner) || '',
+                isMine: (experimentRecord.owner) == req.user.token
             };
         });
 
@@ -58,45 +60,69 @@ router.get('/api/experimentRecords/user/getData', authMiddleware(7), async (req,
 // 新增計畫項目
 router.post('/api/experimentRecords/user/register', authMiddleware(7), async (req, res) => {
 
-    const token =  uuidv4();
-    let { name } = req.body;
+    const token = uuidv4();
+    const { name } = req.body;
 
     if (!name) {
         return res.send({
-            type:'error',
-            message:'註冊資料不可為空。'
+            type: 'error',
+            message: '註冊資料不可為空。'
         });
     }
 
     try {
 
-        const existingExperimentRecord = await experimentRecordModel.findOne({ name, isDeleted: false });
-        if (existingExperimentRecord ) {
+        const existingExperimentRecord = await experimentRecordModel.findOne({ name, owner: req.user.token });
+        if (existingExperimentRecord) {
             return res.send({
-                type:'error',
-                message:'實驗計畫已存在，請選擇其他計畫名稱。'
+                type: 'error',
+                message: '實驗計畫已存在，請選擇其他計畫名稱。'
             });
         }
+
+        const now = format(new Date(), 'yyyy-MM-dd HH:mm:ss');
         
-        const newLab = new experimentRecordModel({
-            createTime: format(new Date(), 'yyyy-MM-dd HH:mm:ss'),
+        const newExperimentRecord = new experimentRecordModel({
+            createTime: now,
             token,
             name,
             owner: req.user.token
         });
+        await newExperimentRecord.save();
 
-        await newLab.save();
+        let rootFolder = await cloudModel.findOne({
+            name: '實驗數據',
+            type: 'folder',
+            parent: null,
+            owner: 'System'
+        });
+
+        if (!rootFolder) {
+            const rootRes = await createFolder({
+                name: '實驗數據',
+                parent: null,
+                owner: 'System'
+            });
+            rootFolder = rootRes.data;
+        }
+
+        await createFolder({
+            token,
+            name,
+            parent: rootFolder.token,
+            owner: req.user.token
+        });
 
         return res.send({
-            type:'success',
-            message:'實驗計畫註冊成功。' 
+            type: 'success',
+            message: '實驗計畫註冊成功。' 
         });
 
     } catch (e) {
-        console.log(e)
+        console.log(e);
         return res.send({
-            type:'error',
-            message:'伺服器錯誤，請洽客服人員協助。'
+            type: 'error',
+            message: '伺服器錯誤，請洽客服人員協助。'
         });
     }
 });
@@ -104,37 +130,88 @@ router.post('/api/experimentRecords/user/register', authMiddleware(7), async (re
 // 刪除計劃項目
 router.post('/api/experimentRecords/user/delete', authMiddleware(7), async (req, res) => {
 
-    let { targetExperimentRecord } = req.body;
+    const { targetExperimentRecord } = req.body;
 
     if (!targetExperimentRecord) {
         return res.send({
-            type:'error',
-            message:'實驗計畫刪除失敗（資料為空）。'
+            type: 'error',
+            message: '實驗計畫刪除失敗（資料為空）。'
         });
     }
 
     try {
 
-        // 檢查實驗室是否存在
-        const experimentRecord = await experimentRecordModel.findOne({ token: targetExperimentRecord, owner: req.user.token });
+        const deleteResult = await experimentRecordModel.deleteOne({ 
+            token: targetExperimentRecord, 
+            owner: req.user.token 
+        });
 
-        if (!experimentRecord) {
-            return res.send({ type: 'error', message: '實驗計畫刪除失敗（實驗計畫不存在）。'});
+        if (deleteResult.deletedCount === 0) {
+            return res.send({ 
+                type: 'error', 
+                message: '實驗計畫刪除失敗（實驗計畫不存在或無權限）。' 
+            });
         }
 
-        // 確認無成員後刪除 Lab
-        experimentRecord.isDeleted = true;
+        await deleteCloudItem(targetExperimentRecord, req.user.token);
 
-        await experimentRecord.save();
+        return res.send({ 
+            type: 'success',  
+            message: '實驗計畫及數據資料夾已刪除成功。' 
+        });
 
-        return res.send({ type:'success',  message:'實驗計畫刪除成功。' });
-
-        } catch (e) {
-            console.log(e);
-            return res.send({ type:'error', message:'伺服器錯誤，請洽客服人員協助。'});
-        }
+    } catch (e) {
+        console.log(e);
+        return res.send({ 
+            type: 'error', 
+            message: '伺服器錯誤，請洽客服人員協助。' 
+        });
+    }
 });
 
+// 計劃評分
+router.post('/api/experimentRecords/user/rate', authMiddleware(7), async (req, res) => {
+
+    const { targetExperimentRecord, rate } = req.body;
+
+    if (!targetExperimentRecord) {
+        return res.send({
+            type: 'error',
+            message: '實驗計畫評分失敗（資料為空）。'
+        });
+    }
+
+    try {
+
+        const target = await experimentRecordModel.findOne({ 
+            token: targetExperimentRecord, 
+            owner: req.user.token 
+        });
+
+        if (!target) {
+            return res.send({ 
+                type: 'error', 
+                message: '實驗計畫評分失敗（實驗計畫不存在或無權限）。' 
+            });
+        }
+
+        target.rate = rate;
+
+        await target.save();
+
+        return res.send({ 
+            type: 'success',  
+            message: '實驗計畫評分成功。' 
+        });
+
+    } catch (e) {
+        console.log(e);
+        return res.send({ 
+            type: 'error', 
+            message: '伺服器錯誤，請洽客服人員協助。' 
+        });
+    }
+});
 
 // 修改實驗室
 router.post('/api/experimentRecords/user/revise', authMiddleware(7), async (req, res) => {

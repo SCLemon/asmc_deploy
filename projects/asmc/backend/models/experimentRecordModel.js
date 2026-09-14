@@ -8,10 +8,6 @@ const experimentRecordSchema = new mongoose.Schema({
         unique: true,
         trim: true,
     },
-    isDeleted:{ // 是否已被刪除 -- 保留紀錄用
-        type: Boolean,
-        default: false,
-    },
     name:{
         type: String,
         trim: true,
@@ -21,6 +17,10 @@ const experimentRecordSchema = new mongoose.Schema({
         type: String,
         trim: true,
         default: ''
+    },
+    rate:{
+        type: Number,
+        default: 0
     },
     recipe:{
         type: [
