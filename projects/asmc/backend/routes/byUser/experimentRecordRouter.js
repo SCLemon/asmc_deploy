@@ -271,8 +271,12 @@ router.put('/api/experimentRecords/user/rename', authMiddleware(7), async (req, 
     try {
 
         record.name = name;
-        
         await record.save();
+
+        const cloud = await cloudModel.findOne({ token: targetRecord });
+
+        cloud.name = name;
+        await cloud.save();
 
         return res.send({ type:'success', message:'實驗重新命名成功！' });
         
