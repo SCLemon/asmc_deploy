@@ -25,18 +25,17 @@ const experimentRecordSchema = new mongoose.Schema({
     recipe:{
         type: [
             {
-                recipeId:{
+                token:{
                     type: String,
                     trim: true,
                 },
-                order: {
-                    type: Number,
-                },
-                equipment:{
+                key: Number,
+                params: Array,
+                title:{
                     type: String,
                     trim: true,
                 },
-                params: Object
+                formData: Object
             }
         ],
         default:[]

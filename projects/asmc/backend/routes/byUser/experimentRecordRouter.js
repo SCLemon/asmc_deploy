@@ -72,11 +72,11 @@ router.post('/api/experimentRecords/user/register', authMiddleware(7), async (re
 
     try {
 
-        const existingExperimentRecord = await experimentRecordModel.findOne({ name, owner: req.user.token });
+        const existingExperimentRecord = await experimentRecordModel.findOne({ name });
         if (existingExperimentRecord) {
             return res.send({
                 type: 'error',
-                message: '實驗計畫已存在，請選擇其他計畫名稱。'
+                message: '實驗計畫已存在，請選擇其他名稱。'
             });
         }
 
@@ -213,87 +213,28 @@ router.post('/api/experimentRecords/user/rate', authMiddleware(7), async (req, r
     }
 });
 
-// 修改實驗室
-router.post('/api/experimentRecords/user/revise', authMiddleware(7), async (req, res) => {
 
-    let { targetLab, name, mailAddress, phoneNumber, location } = req.body;
-
-    if (!name) {
-        return res.send({
-            type:'error',
-            message:'註冊資料不可為空。'
-        });
-    }
-
-    try {
-
-        // 檢查是否與其他實驗室重名
-        const existingLab = await labModel.findOne({ name });
-        if (existingLab && existingLab.token != targetLab) {
-            return res.send({
-                type:'error',
-                message:'實驗室已存在，請選擇其他實驗室名稱。'
-            });
-        }
-
-        const lab = await labModel.findOne({ token: targetLab })
-
-        if(!lab){
-            return res.send({
-                type:'error',
-                message:'實驗室不存在。'
-            });
-        }
-        
-        lab.name = name;
-        lab.phoneNumber = phoneNumber;
-        lab.mailAddress = mailAddress;
-        lab.location = location;
-
-        await lab.save();
-
-        return res.send({
-            type:'success',
-            message:'實驗室資料修改成功。' 
-        });
-
-    } catch (e) {
-        console.log(e)
-        return res.send({
-            type:'error',
-            message:'伺服器錯誤，請洽客服人員協助。'
-        });
-    }
-});
-
-
-// 獲取特定實驗室資料 -- 實驗室基本資料
+// 獲取特定計畫資料
 router.post('/api/experimentRecords/user/getSpecificData', authMiddleware(7), async (req, res) => {
 
-    const { targetLab } = req.body;
+    const { targetRecord } = req.body;
+
+    const record = await experimentRecordModel.findOne({ token: targetRecord });
+
+    if(!record) return res.send({ type:'error', data: [], message:'查無此實驗計畫！' });
 
     try {
 
-        const lab = await labModel.findOne({ token: targetLab });
-        if(!lab){
-            return res.send({
-                type:'success',
-                data: {},
-                message:'實驗室資料不存在。'
-            });
-        }
-        
         const output = {
-            name: lab.name,
-            phoneNumber: lab.phoneNumber,
-            mailAddress: lab.mailAddress,
-            location: lab.location
+            title: record.name,
+            dataSet: record.recipe,
+            isMine: record.owner == req.user.token,
         }
 
         return res.send({
             type:'success',
             data: output,
-            message:'實驗室資料獲取成功！'
+            message:'實驗計畫獲取成功！'
         });
         
     } catch (e) {
@@ -305,28 +246,35 @@ router.post('/api/experimentRecords/user/getSpecificData', authMiddleware(7), as
     }
 });
 
-// 獲取特定實驗室資料 -- 實驗室成員列表
-router.post('/api/experimentRecords/user/getSpecificData/labMember', authMiddleware(7), async (req, res) => {
+// 重新命名
+router.put('/api/experimentRecords/user/rename', authMiddleware(7), async (req, res) => {
 
-    const { targetLab } = req.body;
+    const { targetRecord, name } = req.body;
+
+    if (!targetRecord || !name || name.trim() == '') {
+        return res.send({
+            type:'error',
+            message:'修改資料不可為空。'
+        });
+    }
+
+    
+    const existingExperimentRecord = await experimentRecordModel.findOne({ name });
+    if (existingExperimentRecord) {
+        return res.send({ type: 'error', message: '實驗計畫已存在，請選擇其他名稱。'});
+    }
+
+    const record = await experimentRecordModel.findOne({ token: targetRecord, owner: req.user.token });
+
+    if(!record) return res.send({ type:'error', data: [], message:'查無此實驗計畫！' });
 
     try {
 
-        const users = await userModel.find({ lab: targetLab });
+        record.name = name;
+        
+        await record.save();
 
-        const output = users.map((user) => {
-            return {
-                token: user.token,
-                name: user.name,
-                status: user.status,
-            }
-        })
-
-        return res.send({
-            type:'success',
-            data: output,
-            message:'實驗室成員列表獲取成功！'
-        });
+        return res.send({ type:'success', message:'實驗重新命名成功！' });
         
     } catch (e) {
         console.log(e)
@@ -337,7 +285,40 @@ router.post('/api/experimentRecords/user/getSpecificData/labMember', authMiddlew
     }
 });
 
+// save
+router.post('/api/experimentRecords/user/save', authMiddleware(7), async (req, res) => {
 
+    let { targetRecord, dataSet } = req.body;
+
+    if (!targetRecord || !dataSet) {
+        return res.send({
+            type:'error',
+            message:'儲存資料不可為空。'
+        });
+    }
+
+    try {
+
+        const record = await experimentRecordModel.findOne({ token: targetRecord, owner: req.user.token });
+        if(!record) return res.send({ type:'error', data: [], message:'查無此實驗計畫！' });
+        
+        record.recipe = dataSet;
+
+        await record.save();
+
+        return res.send({
+            type:'success',
+            message:'實驗計畫修改成功。' 
+        });
+
+    } catch (e) {
+        console.log(e)
+        return res.send({
+            type:'error',
+            message:'伺服器錯誤，請洽客服人員協助。'
+        });
+    }
+});
 
 
 
