@@ -66,6 +66,39 @@ app.get('*', (req, res) => {
 });
 
 
+// 門禁跳轉 -- test
+const accessControlProxy = createProxyMiddleware({
+    changeOrigin: true,
+
+    router: (req) => {
+        const match = req.originalUrl.match(
+            /^\/access-control\/([^/]+)(\/.*)?$/
+        );
+
+        if (!match) {
+            return 'http://127.0.0.1';
+        }
+
+        const ip = match[1];
+
+        return `http://${ip}`;
+    },
+
+    pathRewrite: (path) => {
+        // /access-control/192.168.0.2/api/test
+        // ↓
+        // /api/test
+
+        const match = path.match(
+            /^\/access-control\/[^/]+(\/.*)?$/
+        );
+
+        return match?.[1] || '/';
+    }
+});
+
+app.use('/access-control/', accessControlProxy);
+
 // ==========================================
 // 【錯誤處理與伺服器啟動】
 // ==========================================
