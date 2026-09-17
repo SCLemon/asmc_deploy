@@ -60,12 +60,6 @@ app.use((req, res, next) => {
     return asmcStatic(req, res, next);
 });
 
-// 萬用路由：針對 Hash 模式的根路徑 `/` 或前端重新整理時，正確回傳 index.html
-app.get('*', (req, res) => {
-    return res.sendFile(path.join(__dirname, 'projects', 'asmc', 'dist', 'index.html'));
-});
-
-
 // 門禁跳轉 -- test
 const accessControlProxy = createProxyMiddleware({
     changeOrigin: true,
@@ -98,6 +92,12 @@ const accessControlProxy = createProxyMiddleware({
 });
 
 app.use('/access-control/', accessControlProxy);
+
+
+// 萬用路由：針對 Hash 模式的根路徑 `/` 或前端重新整理時，正確回傳 index.html
+app.get('*', (req, res) => {
+    return res.sendFile(path.join(__dirname, 'projects', 'asmc', 'dist', 'index.html'));
+});
 
 // ==========================================
 // 【錯誤處理與伺服器啟動】
