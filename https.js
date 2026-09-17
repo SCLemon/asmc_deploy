@@ -8,6 +8,7 @@ const net = require('net');
 const app = express();
 const PORT = process.env.PORT || 443;
 
+
 // ==========================================
 // SSL 憑證
 // ==========================================
@@ -15,19 +16,29 @@ const PORT = process.env.PORT || 443;
 const { originForHttps, keyForHttps } = require('./sslPath.js');
 
 const options = {
-    key: fs.readFileSync(path.resolve(__dirname, keyForHttps)),
-    cert: fs.readFileSync(path.resolve(__dirname, originForHttps))
+    key: fs.readFileSync(
+        path.resolve(__dirname, keyForHttps)
+    ),
+
+    cert: fs.readFileSync(
+        path.resolve(__dirname, originForHttps)
+    )
 };
 
 
 // ==========================================
-// ASMC (3007) Proxy
+// ASMC (3007) API Proxy
 // ==========================================
 
 const asmcApiProxy = createProxyMiddleware({
     target: 'http://127.0.0.1:3007/api/',
     changeOrigin: true
 });
+
+
+// ==========================================
+// ASMC (3007) LOGIN Proxy
+// ==========================================
 
 const asmcLoginProxy = createProxyMiddleware({
     target: 'http://127.0.0.1:3007/login/',
@@ -36,50 +47,67 @@ const asmcLoginProxy = createProxyMiddleware({
 
 
 // ==========================================
-// 1. ASMC API
+// ASMC API
 // ==========================================
 
 app.use('/api/', (req, res, next) => {
+
+    console.log(
+        '[ASMC API]',
+        req.method,
+        req.originalUrl
+    );
+
     return asmcApiProxy(req, res, next);
 });
 
 
 // ==========================================
-// 2. ASMC LOGIN
+// ASMC LOGIN
 // ==========================================
 
 app.use('/login/', (req, res, next) => {
+
+    console.log(
+        '[ASMC LOGIN]',
+        req.method,
+        req.originalUrl
+    );
+
     return asmcLoginProxy(req, res, next);
 });
 
 
 // ==========================================
-// 3. ACCESS CONTROL Reverse Proxy
+// ACCESS CONTROL
 //
-// 使用方式：
+// 動態 IP Reverse Proxy
 //
-// https://sclemon1013.com/access-control/192.168.0.2/
-//
-//                     ↓
-//
+// /access-control/192.168.0.2/
+//        ↓
 // http://192.168.0.2/
 //
+// /access-control/192.168.0.5/
+//        ↓
+// http://192.168.0.5/
 //
-//
-// https://sclemon1013.com/access-control/192.168.0.2/api/test
-//
-//                     ↓
-//
-// http://192.168.0.2/api/test
+// /access-control/192.168.0.123/api/test
+//        ↓
+// http://192.168.0.123/api/test
 // ==========================================
 
 const accessControlProxy = createProxyMiddleware({
 
+    // 這裡只需要一個預設 target
+    // 實際 target 由 router 動態決定
+    target: 'http://127.0.0.1',
+
     changeOrigin: true,
 
-    // --------------------------------------
-    // 根據 URL 裡面的 IP 動態決定 target
-    // --------------------------------------
+
+    // ======================================
+    // 動態決定 Proxy Target
+    // ======================================
 
     router: (req) => {
 
@@ -88,7 +116,8 @@ const accessControlProxy = createProxyMiddleware({
         );
 
         if (!match) {
-            console.log(
+
+            console.error(
                 '[ACCESS CONTROL] Invalid URL:',
                 req.originalUrl
             );
@@ -100,27 +129,21 @@ const accessControlProxy = createProxyMiddleware({
 
         console.log('');
         console.log('==========================================');
-        console.log('[ACCESS CONTROL]');
-        console.log('Client IP :', req.ip);
-        console.log('Request   :', req.method, req.originalUrl);
-        console.log('Target IP :', ip);
-        console.log('Target    :', `http://${ip}`);
+        console.log('[ACCESS CONTROL REQUEST]');
+        console.log('Method      :', req.method);
+        console.log('Original URL:', req.originalUrl);
+        console.log('Target IP   :', ip);
+        console.log('Target      :', `http://${ip}`);
         console.log('==========================================');
+        console.log('');
 
         return `http://${ip}`;
     },
 
 
-    // --------------------------------------
-    // 把：
-    //
-    // /access-control/192.168.0.2/api/test
-    //
-    // 改成：
-    //
-    // /api/test
-    //
-    // --------------------------------------
+    // ======================================
+    // 移除 /access-control/<ip>
+    // ======================================
 
     pathRewrite: (path, req) => {
 
@@ -129,15 +152,21 @@ const accessControlProxy = createProxyMiddleware({
         );
 
         if (!match) {
+
+            console.error(
+                '[ACCESS CONTROL] Path rewrite failed:',
+                req.originalUrl
+            );
+
             return '/';
         }
 
         const newPath = match[1] || '/';
 
         console.log(
-            '[ACCESS CONTROL] Path Rewrite:',
+            '[ACCESS CONTROL PATH]',
             path,
-            '→',
+            '=>',
             newPath
         );
 
@@ -145,37 +174,97 @@ const accessControlProxy = createProxyMiddleware({
     },
 
 
-    // --------------------------------------
-    // Proxy 發生錯誤
-    // --------------------------------------
+    // ======================================
+    // Proxy Request
+    // ======================================
+
+    onProxyReq: (proxyReq, req, res) => {
+
+        console.log(
+            '[ACCESS CONTROL → TARGET]',
+            req.method,
+            req.originalUrl,
+            '=>',
+            proxyReq.path
+        );
+    },
+
+
+    // ======================================
+    // Proxy Response
+    // ======================================
+
+    onProxyRes: (proxyRes, req, res) => {
+
+        console.log(
+            '[ACCESS CONTROL ← TARGET]',
+            proxyRes.statusCode,
+            req.method,
+            req.originalUrl
+        );
+    },
+
+
+    // ======================================
+    // Proxy Error
+    // ======================================
 
     onError: (err, req, res) => {
 
         console.error('');
-        console.error('==========================================');
-        console.error('[ACCESS CONTROL ERROR]');
-        console.error('Request:', req.method, req.originalUrl);
-        console.error('Error  :', err.message);
-        console.error('==========================================');
+        console.error(
+            '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+        );
+
+        console.error(
+            '[ACCESS CONTROL PROXY ERROR]'
+        );
+
+        console.error(
+            'Method:',
+            req.method
+        );
+
+        console.error(
+            'URL:',
+            req.originalUrl
+        );
+
+        console.error(
+            'Error:',
+            err.message
+        );
+
+        console.error(
+            '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+        );
+
         console.error('');
 
         if (!res.headersSent) {
+
             res.status(502).send(
-                'Target internal website unavailable.'
+                'Access Control target unavailable.'
             );
         }
     }
 });
 
 
-// ⚠️ 非常重要
-// 一定要放在 express.static() 和 app.get('*') 前面
+// ==========================================
+// ACCESS CONTROL ROUTE
+//
+// ⚠️ 必須放在 Static 前面
+// ==========================================
 
-app.use('/access-control/', accessControlProxy);
+app.use(
+    '/access-control/',
+    accessControlProxy
+);
 
 
 // ==========================================
-// 4. ASMC Static Files
+// ASMC Static Files
 // ==========================================
 
 const asmcStatic = express.static(
@@ -187,16 +276,34 @@ const asmcStatic = express.static(
     )
 );
 
-app.use((req, res, next) => {
-    return asmcStatic(req, res, next);
-});
+
+// ==========================================
+// Static Middleware
+// ==========================================
+
+app.use(
+    (req, res, next) => {
+
+        return asmcStatic(
+            req,
+            res,
+            next
+        );
+    }
+);
 
 
 // ==========================================
-// 5. SPA fallback
+// SPA Fallback
 // ==========================================
 
 app.get('*', (req, res) => {
+
+    console.log(
+        '[ASMC SPA]',
+        req.method,
+        req.originalUrl
+    );
 
     return res.sendFile(
         path.join(
@@ -211,23 +318,49 @@ app.get('*', (req, res) => {
 
 
 // ==========================================
-// 6. Error Handler
+// Express Error Handler
 // ==========================================
 
-app.use((err, req, res, next) => {
+app.use(
+    (err, req, res, next) => {
 
-    console.error(err.stack);
-
-    if (!res.headersSent) {
-        res.status(500).send(
-            'Something broke!'
+        console.error('');
+        console.error(
+            '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
         );
+
+        console.error(
+            '[EXPRESS ERROR]'
+        );
+
+        console.error(
+            'URL:',
+            req.originalUrl
+        );
+
+        console.error(
+            'ERROR:',
+            err.stack
+        );
+
+        console.error(
+            '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+        );
+
+        console.error('');
+
+        if (!res.headersSent) {
+
+            res.status(500).send(
+                'Something broke!'
+            );
+        }
     }
-});
+);
 
 
 // ==========================================
-// 7. HTTPS Server
+// HTTPS Server
 // ==========================================
 
 https.createServer(
@@ -238,16 +371,67 @@ https.createServer(
     '0.0.0.0',
     () => {
 
+        console.log('');
+        console.log('==========================================');
+        console.log('HTTPS Server is running');
+        console.log('Port:', PORT);
+        console.log('==========================================');
+
+        console.log('');
+        console.log('ASMC API:');
         console.log(
-            `HTTPS Server is running on port ${PORT}`
+            '  /api/*'
+        );
+        console.log(
+            '  -> http://127.0.0.1:3007/api/'
+        );
+
+        console.log('');
+        console.log('ASMC Login:');
+        console.log(
+            '  /login/*'
+        );
+        console.log(
+            '  -> http://127.0.0.1:3007/login/'
+        );
+
+        console.log('');
+        console.log('Access Control:');
+        console.log(
+            '  /access-control/<IP>/*'
+        );
+        console.log(
+            '  -> http://<IP>/*'
+        );
+
+        console.log('');
+        console.log(
+            'Example:'
+        );
+        console.log(
+            '  https://sclemon1013.com/access-control/192.168.0.2/'
+        );
+        console.log(
+            '  -> http://192.168.0.2/'
+        );
+
+        console.log('');
+        console.log(
+            '  https://sclemon1013.com/access-control/192.168.0.5/'
+        );
+        console.log(
+            '  -> http://192.168.0.5/'
+        );
+
+        console.log('');
+        console.log(
+            'https://sclemon1013.com/'
         );
 
         console.log(
-            `https://sclemon1013.com/`
+            '=========================================='
         );
 
-        console.log(
-            `Access Control Proxy enabled`
-        );
+        console.log('');
     }
 );
