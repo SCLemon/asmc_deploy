@@ -25,7 +25,8 @@ const authMiddleware = (level) => {
 
                 tokenCache.set(token, user);
                 
-            } catch (e) {
+            } 
+            catch (e) {
                 console.error(e);
                 return res.send({ type: 'error', message: '伺服器錯誤' });
             }
@@ -34,7 +35,6 @@ const authMiddleware = (level) => {
         if(!user.status) return res.send({ type:'error', message:'帳號已被停權。' });
         
         if(!user.level || user.level < level) return res.send({ type: 'error', message: '訪問權限不足。' });
-
         req.user = user;
         next();
     };

@@ -61,6 +61,14 @@ const userSchema = new mongoose.Schema({
         trim: true,
         default:''
     },
+    affidavit:{ // 切結書
+        type: Object,
+        default: {
+            status: false,
+            timestamp: String,
+            ip: String,
+        }
+    }
 });
 
 

@@ -251,6 +251,8 @@ router.post('/api/reservation/user/handleReserve', authMiddleware(0), labMiddlew
 
     try {
 
+        if(!(req.user?.affidavit?.status)) return res.send({ type:'error', message:'切結書尚未簽核。'});
+
         const equipment = await equipmentModel.findOne({ token: targetEquipment, status: true, isDeleted: false, users: req.user.token });
 
         if (!equipment) return res.send({ type:'error', message:'儀器資料不存在。'});
