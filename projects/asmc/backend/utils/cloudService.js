@@ -2,6 +2,7 @@ const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const { format } = require('date-fns');
 const cloudModel = require('../models/cloudModel');
+const userModel = require('../models/userModel');
 
 async function createFolder({ name, parent = null, owner, token = null }) {
     if (!name) {
@@ -45,11 +46,6 @@ async function createFolder({ name, parent = null, owner, token = null }) {
     };
 }
 
-/**
- * 遞迴取得指定 parent 底下的所有子、孫項目
- * @param {string} parentToken
- * @returns {Promise<Array>}
- */
 async function getChildrenRecursively(parentToken) {
     const children = await cloudModel.find({ parent: parentToken }).lean();
     let items = [];
@@ -65,12 +61,25 @@ async function getChildrenRecursively(parentToken) {
     return items;
 }
 
-async function deleteCloudItem(targetToken, ownerToken) {
-    if (!targetToken) {
+async function deleteCloudItem(targetToken, userToken) {
+    if (!targetToken || !userToken) {
         return { success: false, message: '資料不可為空。' };
     }
 
-    const cloud = await cloudModel.findOne({ token: targetToken, owner: ownerToken });
+    // 1. 先確認操作使用者的權限
+    const user = await userModel.findOne({ token: userToken });
+    if (!user) {
+        return { success: false, message: '使用者驗證失敗。' };
+    }
+
+    // 2. 判斷是否為最高權限管理者 (level === 10)
+    // 如果是 level 10，只需要比對 targetToken；一般使用者則需同時比對 owner
+    const query = { token: targetToken };
+    if (user.level != 10) {
+        query.owner = userToken;
+    }
+
+    const cloud = await cloudModel.findOne(query);
     if (!cloud) {
         return { success: false, message: '檔案或資料夾不存在或無權限刪除。' };
     }

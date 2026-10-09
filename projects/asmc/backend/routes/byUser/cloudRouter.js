@@ -265,7 +265,6 @@ router.post('/api/cloud/user/createFolder', authMiddleware(7), async (req, res) 
 
 // 修改 Cloud 名稱
 router.put('/api/cloud/user/rename', authMiddleware(7), async (req, res) => {
-
     const { targetCloud, name } = req.body;
 
     if (!targetCloud || !name) {
@@ -276,24 +275,29 @@ router.put('/api/cloud/user/rename', authMiddleware(7), async (req, res) => {
     }
 
     try {
+        // 1. 動態組裝查詢條件：若 level === 10 則不限制 owner
+        const query = { token: targetCloud };
+        if (req.user.level != 10) {
+            query.owner = req.user.token;
+        }
 
-        const cloud = await cloudModel.findOne({ token: targetCloud, owner: req.user.token });
+        const cloud = await cloudModel.findOne(query);
 
-        if (!cloud) return res.send({ type: 'error', message: '檔案或資料夾重新命名失敗。' });
-
-
+        if (!cloud) {
+            return res.send({
+                type: 'error',
+                message: '檔案或資料夾不存在或無權限修改。'
+            });
+        }
 
         let finalName = name.trim();
 
         if (cloud.type === 'file') {
-
             const ext = path.extname(cloud.name);
             if (ext && !finalName.endsWith(ext)) finalName += ext;
-
         }
 
-
-
+        // 2. 檢查同層同類型名稱是否重複
         const existingCloud = await cloudModel.findOne({
             token: { $ne: targetCloud },
             parent: cloud.parent,
@@ -311,11 +315,9 @@ router.put('/api/cloud/user/rename', authMiddleware(7), async (req, res) => {
         }
 
         cloud.name = finalName;
-
         cloud.updateTime = format(new Date(), 'yyyy-MM-dd HH:mm:ss');
 
         await cloud.save();
-
 
         return res.send({
             type: 'success',
@@ -324,16 +326,12 @@ router.put('/api/cloud/user/rename', authMiddleware(7), async (req, res) => {
         });
 
     } catch (e) {
-
         console.log(e);
-
         return res.send({
             type: 'error',
             message: '伺服器錯誤，請洽客服人員協助。'
         });
-
     }
-
 });
 
 
