@@ -6,6 +6,7 @@ const router = express.Router();
 const authMiddleware = require('../../middleware/auth.middleware');
 
 // 上傳檔案
+const os = require('os');
 const fs = require('fs');
 const path = require('path');
 
@@ -358,164 +359,135 @@ router.put('/api/cloud/user/delete', authMiddleware(7), async (req, res) => {
 });
 
 
-
-
 // 下載 Cloud（單一檔案 / 整個資料夾）
 router.get('/api/cloud/user/download/:targetCloud', authMiddleware(7), async (req, res) => {
+    const { targetCloud } = req.params;
 
-        const { targetCloud } = req.params;
+    if (!targetCloud) {
+        return res.status(400).send({ type: 'error', message: '資料不可為空。' });
+    }
 
-        if (!targetCloud) {
-            return res.send({ type: 'error', message: '資料不可為空。' });
+    try {
+        const cloud = await cloudModel.findOne({ token: targetCloud }).lean();
+
+        if (!cloud) {
+            return res.status(404).send({ type: 'error', message: '檔案或資料夾不存在。' });
         }
 
-
-        try {
-
-            const cloud = await cloudModel.findOne({ token: targetCloud }).lean();
-
-
-            if (!cloud) {
-                return res.send({ type: 'error', message: '檔案或資料夾不存在。' });
+        // ========================
+        // 1. 單一檔案下載
+        // ========================
+        if (cloud.type === 'file') {
+            if (!cloud.file?.path) {
+                return res.status(404).send({ type: 'error', message: '找不到檔案路徑。' });
             }
 
-            if (cloud.type === 'file') {
-
-
-                // 檢查檔案路徑
-                if (!cloud.file?.path) {
-                    return res.send({ type: 'error', message: '找不到檔案路徑。' });
-                }
-
-
-                // 檢查實體檔案是否存在
-                try {
-                    await fs.promises.access(cloud.file.path, fs.constants.F_OK);
-                } 
-                catch {
-                    return res.send({type: 'error', message: '實體檔案不存在。' });
-                }
-
-
-                // 下載檔案
-                return res.download(cloud.file.path, cloud.name);
-
+            try {
+                await fs.promises.access(cloud.file.path, fs.constants.F_OK);
+            } catch {
+                return res.status(404).send({ type: 'error', message: '實體檔案不存在。' });
             }
 
+            // 取得檔案大小並回傳 Content-Length
+            const stat = await fs.promises.stat(cloud.file.path);
 
-            if (cloud.type === 'folder') {
+            res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Disposition');
+            res.setHeader('Content-Length', stat.size);
 
+            return res.download(cloud.file.path, cloud.name);
+        }
 
-                const zipName = `${cloud.name}.zip`;
+        // ========================
+        // 2. 資料夾壓縮下載 (使用 new ZipArchive)
+        // ========================
+        if (cloud.type === 'folder') {
+            const zipName = `${cloud.name}.zip`;
+            // 建立暫存檔以計算總大小 (Content-Length)
+            const tempZipPath = path.join(os.tmpdir(), `temp_${Date.now()}_${encodeURIComponent(zipName)}`);
+            const output = fs.createWriteStream(tempZipPath);
 
-                res.setHeader('Content-Type', 'application/zip');
-                res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(zipName)}`);
+            // 透過 new ZipArchive 建構實例
+            const archive = new ZipArchive({
+                zlib: { level: 9 }
+            });
 
+            archive.pipe(output);
 
-                const archive = new ZipArchive({
-                    zlib: { level: 9 }
-                });
+            archive.on('error', (err) => {
+                console.error('ZIP 建立失敗：', err);
+                if (!res.headersSent) {
+                    res.status(500).send({ type: 'error', message: 'ZIP 建立失敗。' });
+                } else {
+                    res.destroy(err);
+                }
+            });
 
-                archive.on('error', (err) => {
+            // 遞迴加入資料夾與檔案
+            const addFolderToZip = async (parentToken, currentZipPath) => {
+                const children = await cloudModel.find({ parent: parentToken }).lean();
 
-                    console.log('ZIP 建立失敗：', err);
+                for (const child of children) {
+                    const childZipPath = `${currentZipPath}/${child.name}`;
 
-
-                    // 如果 Header 還沒送出
-                    if (!res.headersSent) {
-
-                        res.send({ type: 'error',  message: 'ZIP 建立失敗。' });
-
-                    } 
-                    else res.destroy(err);
-
-                });
-
-
-                res.on('close', () => {
-
-                    if (!res.writableEnded) archive.abort();
-
-                });
-
-                archive.pipe(res);
-
-                const addFolderToZip = async (parentToken, currentZipPath) => {
-
-
-                    // 找出目前資料夾底下的所有項目
-                    const children = await cloudModel.find({ parent: parentToken }).lean();
-
-
-                    // 逐一處理
-                    for (const child of children) {
-
-                        const childZipPath = `${currentZipPath}/${child.name}`;
-
-                        if (child.type === 'folder') {
-
-                            archive.append('', { name: `${childZipPath}/` });
-
-
-                            // 遞迴處理下一層
-                            await addFolderToZip(child.token, childZipPath);
-
-                            continue;
-
-                        }
-
-
-                        if (child.type === 'file' && child.file?.path) {
-
-
-                            try {
-
-                                // 確認實體檔案存在
-                                await fs.promises.access(child.file.path, fs.constants.F_OK);
-
-
-                                // 加入 ZIP
-                                archive.file(child.file.path, { name: childZipPath });
-
-                            } 
-                            catch (e) {
-                                console.log(`找不到實體檔案：${child.file.path}`);
-                            }
-
-                        }
-
+                    if (child.type === 'folder') {
+                        archive.append('', { name: `${childZipPath}/` });
+                        await addFolderToZip(child.token, childZipPath);
+                        continue;
                     }
 
-                };
+                    if (child.type === 'file' && child.file?.path) {
+                        try {
+                            await fs.promises.access(child.file.path, fs.constants.F_OK);
+                            // 將實體檔案壓入 ZIP 內的指定相對路徑
+                            archive.file(child.file.path, { name: childZipPath });
+                        } catch (e) {
+                            console.warn(`找不到實體檔案：${child.file.path}`);
+                        }
+                    }
+                }
+            };
 
-                archive.append('', { name: `${cloud.name}/` });
+            // 根目錄與子層處理
+            archive.append('', { name: `${cloud.name}/` });
+            await addFolderToZip(cloud.token, cloud.name);
+            await archive.finalize();
 
-                await addFolderToZip(cloud.token, cloud.name);
+            // 等待暫存檔案完全寫入完成
+            await new Promise((resolve, reject) => {
+                output.on('close', resolve);
+                output.on('error', reject);
+            });
 
-                await archive.finalize();
+            // 取得產生出來的 ZIP 實體大小
+            const zipStat = await fs.promises.stat(tempZipPath);
 
+            // 設定標頭：暴露 Content-Length 供前端讀取進度百分比
+            res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Disposition');
+            res.setHeader('Content-Length', zipStat.size);
+            res.setHeader('Content-Type', 'application/zip');
+            res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(zipName)}`);
 
-                return;
+            // 串流輸出到客戶端
+            const fileStream = fs.createReadStream(tempZipPath);
+            fileStream.pipe(res);
 
-            }
+            // 傳輸完畢後刪除磁碟上的暫存檔
+            fileStream.on('close', () => {
+                fs.promises.unlink(tempZipPath).catch(() => {});
+            });
 
-            return res.send({ type: 'error', message: '未知的資料類型。' });
-
-
-        } catch (e) {
-
-            console.log(e);
-
-            if (!res.headersSent) return res.send({ type: 'error', message: '伺服器錯誤，請洽客服人員協助。' });
-
-            res.destroy(e);
-
+            return;
         }
 
+        return res.status(400).send({ type: 'error', message: '未知的資料類型。' });
+
+    } catch (e) {
+        console.error(e);
+        if (!res.headersSent) {
+            return res.status(500).send({ type: 'error', message: '伺服器錯誤，請洽客服人員協助。' });
+        }
+        res.destroy(e);
     }
-);
-
-
-
+});
 
 module.exports = router;
