@@ -18,11 +18,19 @@ const { createFolder, deleteCloudItem } = require('../../utils/cloudService');
 // 獲取計畫列表
 router.get('/api/experimentRecords/user/getData', authMiddleware(7), async (req, res) => {
 
-    try {
+    const { group } = req.query;
 
+    try {
         const users = await userModel.find({}, 'token name').lean();
 
-        const experimentRecords = await experimentRecordModel.find({ isDeleted: false }).lean();
+        // 根據 group 決定查詢條件
+        let query = { isDeleted: false };
+
+        if (Number(group) === 1) {
+            query.owner = req.user.token;
+        }
+
+        const experimentRecords = await experimentRecordModel.find(query).lean();
 
         // 建立 token -> name 的對應表
         const userMap = new Map(users.map(u => [u.token, u.name]));
@@ -34,7 +42,7 @@ router.get('/api/experimentRecords/user/getData', authMiddleware(7), async (req,
                 name: experimentRecord.name,
                 rate: experimentRecord.rate ?? 0,
                 owner: userMap.get(experimentRecord.owner) || '',
-                isMine: (experimentRecord.owner) == req.user.token
+                isMine: experimentRecord.owner == req.user.token
             };
         });
 
@@ -45,14 +53,12 @@ router.get('/api/experimentRecords/user/getData', authMiddleware(7), async (req,
         });
 
     } catch (e) {
-
         console.log(e);
 
         return res.send({
             type: 'error',
             message: '伺服器錯誤，請洽客服人員協助。'
         });
-
     }
 
 });

@@ -33,7 +33,7 @@ router.get('/api/memberSetting/admin/getData', authMiddleware(10), async (req, r
                 status: user.status,
                 token: user.token,
             }
-        })
+        }).sort((a,b)=> b.level - a.level)
         return res.send({
             type:'success',
             data: output,
