@@ -13,6 +13,11 @@ const experimentRecordSchema = new mongoose.Schema({
         trim: true,
         default: '',
     },
+    abstract:{
+        type: String,
+        trim: true,
+        default: '',
+    },
     owner:{ // owner token
         type: String,
         trim: true,

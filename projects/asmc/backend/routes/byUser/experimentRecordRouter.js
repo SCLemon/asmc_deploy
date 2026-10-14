@@ -36,15 +36,17 @@ router.get('/api/experimentRecords/user/getData', authMiddleware(7), async (req,
         const userMap = new Map(users.map(u => [u.token, u.name]));
 
         const output = experimentRecords.map((experimentRecord) => {
+            const results = experimentRecord.recipe.findLast(i => i.key == 9)?.formData ?? null;
+            let resultStr = results ? `${results.Ion ?? '-'}, ${results.SS ?? '-'}, ${results.contact_type ?? '-'} @ [${results.conditions ?? '-'}]` : '-'
             return {
                 createTime: experimentRecord.createTime,
                 token: experimentRecord.token,
                 name: experimentRecord.name,
-                rate: experimentRecord.rate ?? 0,
+                results: resultStr,
                 owner: userMap.get(experimentRecord.owner) || '',
                 isMine: experimentRecord.owner == req.user.token
             };
-        });
+        }).reverse();
 
         return res.send({
             type: 'success',
@@ -234,6 +236,7 @@ router.post('/api/experimentRecords/user/getSpecificData', authMiddleware(7), as
         const output = {
             title: record.name,
             dataSet: record.recipe,
+            abstract: record.abstract,
             isMine: record.owner == req.user.token,
         }
 
@@ -298,9 +301,9 @@ router.put('/api/experimentRecords/user/rename', authMiddleware(7), async (req, 
 // save
 router.post('/api/experimentRecords/user/save', authMiddleware(7), async (req, res) => {
 
-    let { targetRecord, dataSet } = req.body;
+    let { targetRecord, dataSet, abstract } = req.body;
 
-    if (!targetRecord || !dataSet) {
+    if (!targetRecord) {
         return res.send({
             type:'error',
             message:'儲存資料不可為空。'
@@ -313,6 +316,7 @@ router.post('/api/experimentRecords/user/save', authMiddleware(7), async (req, r
         if(!record) return res.send({ type:'error', data: [], message:'查無此實驗計畫！' });
         
         record.recipe = dataSet;
+        record.abstract = abstract;
 
         await record.save();
 
