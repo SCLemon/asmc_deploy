@@ -37,7 +37,7 @@ router.get('/api/experimentRecords/user/getData', authMiddleware(7), async (req,
 
         const output = experimentRecords.map((experimentRecord) => {
             const results = experimentRecord.recipe.findLast(i => i.key == 9)?.formData ?? null;
-            let resultStr = results ? `${results.Ion ?? '-'}, ${results.SS ?? '-'}, ${results.contact_type ?? '-'} @ [${results.conditions ?? '-'}]` : '-'
+            let resultStr = results ? `${results.Ion ?? '-'}, ${results.Vth ?? '-'}, ${results.SS ?? '-'}, ${results.contact_type ?? '-'} @ [${results.conditions ?? '-'}]` : '-'
             return {
                 createTime: experimentRecord.createTime,
                 token: experimentRecord.token,
