@@ -8,7 +8,7 @@ const labModel = require('../../models/labModel');
 const userModel = require('../../models/userModel');
 const experimentRecordModel = require('../../models/experimentRecordModel');
 const cloudModel = require('../../models/cloudModel');
-const {format} = require('date-fns');
+const { format } = require('date-fns');
 const { v4: uuidv4 } = require('uuid');
 
 const authMiddleware = require('../../middleware/auth.middleware');
@@ -39,7 +39,7 @@ router.get('/api/experimentRecords/user/getData', authMiddleware(7), async (req,
             const results = experimentRecord.recipe.findLast(i => i.key == 9)?.formData ?? null;
             let resultStr = results ? `${results.Ion ?? '-'}, ${results.Vth ?? '-'}, ${results.SS ?? '-'}, ${results.contact_type ?? '-'} @ [${results.conditions ?? '-'}]` : '-'
             return {
-                createTime: experimentRecord.createTime,
+                createTime: format(new Date(experimentRecord.createTime), 'yy.MM.dd'),
                 token: experimentRecord.token,
                 name: experimentRecord.name,
                 results: resultStr,
