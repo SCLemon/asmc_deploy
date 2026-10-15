@@ -72,8 +72,6 @@ async function deleteCloudItem(targetToken, userToken) {
         return { success: false, message: '使用者驗證失敗。' };
     }
 
-    // 2. 判斷是否為最高權限管理者 (level === 10)
-    // 如果是 level 10，只需要比對 targetToken；一般使用者則需同時比對 owner
     const query = { token: targetToken };
     if (user.level != 10) {
         query.owner = userToken;
@@ -86,13 +84,11 @@ async function deleteCloudItem(targetToken, userToken) {
 
     let deleteItems = [cloud];
 
-    // 如果是資料夾，連同所有子項目一起收集
     if (cloud.type === 'folder') {
         const children = await getChildrenRecursively(targetToken);
         deleteItems.push(...children);
     }
 
-    // 收集實體檔案路徑
     const filePaths = deleteItems
         .filter((item) => item.type === 'file' && item.file?.path)
         .map((item) => item.file.path);

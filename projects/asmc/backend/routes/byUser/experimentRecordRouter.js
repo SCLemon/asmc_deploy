@@ -150,9 +150,7 @@ router.post('/api/experimentRecords/user/delete', authMiddleware(7), async (req,
         const isAdmin = req.user.level == 10;
 
         const query = { token: targetExperimentRecord };
-        if (!isAdmin) {
-            query.owner = req.user.token;
-        }
+        if (!isAdmin) query.owner = req.user.token;
 
         const record = await experimentRecordModel.findOne(query);
 
@@ -165,7 +163,8 @@ router.post('/api/experimentRecords/user/delete', authMiddleware(7), async (req,
 
         await experimentRecordModel.deleteOne({ _id: record._id });
 
-        await deleteCloudItem(targetExperimentRecord, record.owner);
+        const deleteCloudUserToken = isAdmin ? req.user.token : record.owner;
+        await deleteCloudItem(targetExperimentRecord, deleteCloudUserToken);
 
         return res.send({ 
             type: 'success',  
