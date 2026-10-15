@@ -137,7 +137,6 @@ router.post('/api/experimentRecords/user/register', authMiddleware(7), async (re
 
 // 刪除計劃項目
 router.post('/api/experimentRecords/user/delete', authMiddleware(7), async (req, res) => {
-
     const { targetExperimentRecord } = req.body;
 
     if (!targetExperimentRecord) {
@@ -148,20 +147,25 @@ router.post('/api/experimentRecords/user/delete', authMiddleware(7), async (req,
     }
 
     try {
+        const isAdmin = req.user.level == 10;
 
-        const deleteResult = await experimentRecordModel.deleteOne({ 
-            token: targetExperimentRecord, 
-            owner: req.user.token 
-        });
+        const query = { token: targetExperimentRecord };
+        if (!isAdmin) {
+            query.owner = req.user.token;
+        }
 
-        if (deleteResult.deletedCount === 0) {
+        const record = await experimentRecordModel.findOne(query);
+
+        if (!record) {
             return res.send({ 
                 type: 'error', 
                 message: '實驗計畫刪除失敗（實驗計畫不存在或無權限）。' 
             });
         }
 
-        await deleteCloudItem(targetExperimentRecord, req.user.token);
+        await experimentRecordModel.deleteOne({ _id: record._id });
+
+        await deleteCloudItem(targetExperimentRecord, record.owner);
 
         return res.send({ 
             type: 'success',  
