@@ -236,6 +236,7 @@ router.post('/api/experimentRecords/user/getSpecificData', authMiddleware(7), as
         const output = {
             title: record.name,
             dataSet: record.recipe,
+            period: record.period || [],
             abstract: record.abstract,
             isMine: record.owner == req.user.token,
         }
@@ -301,7 +302,7 @@ router.put('/api/experimentRecords/user/rename', authMiddleware(7), async (req, 
 // save
 router.post('/api/experimentRecords/user/save', authMiddleware(7), async (req, res) => {
 
-    let { targetRecord, dataSet, abstract } = req.body;
+    let { targetRecord, dataSet, abstract, period } = req.body;
 
     if (!targetRecord) {
         return res.send({
@@ -317,6 +318,7 @@ router.post('/api/experimentRecords/user/save', authMiddleware(7), async (req, r
         
         record.recipe = dataSet;
         record.abstract = abstract;
+        record.period = period;
 
         await record.save();
 

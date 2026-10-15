@@ -13,6 +13,10 @@ const experimentRecordSchema = new mongoose.Schema({
         trim: true,
         default: '',
     },
+    period:{
+        type: Array,
+        default: []
+    },
     abstract:{
         type: String,
         trim: true,
