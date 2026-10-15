@@ -74,7 +74,10 @@ router.post('/api/memberSetting/admin/getSpecificData', authMiddleware(10), asyn
             phoneNumber: user.phoneNumber,
             mailAddress: user.mailAddress,
             lab: user.lab,
-            status: user.status
+            status: user.status,
+            lastOnline: user.lastOnline || '',
+            affidavit: user.affidavit.status || false
+
         }
 
         return res.send({
