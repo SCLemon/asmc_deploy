@@ -15,7 +15,7 @@ const toolSchema = new mongoose.Schema({
         type: String,
         default: ''
     },
-    iconUrl: {
+    iconToken: { // 存在雲端的 Token
         type: String,
         default: ''
     },

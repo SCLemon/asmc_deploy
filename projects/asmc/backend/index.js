@@ -1,10 +1,13 @@
 const express = require('express');
 const compression = require('compression');
 const app = express();
+const cookieParser = require('cookie-parser');
+
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(compression());
+app.use(cookieParser());
 
 app.set('trust proxy', 'loopback, 192.168.0.1'); 
 

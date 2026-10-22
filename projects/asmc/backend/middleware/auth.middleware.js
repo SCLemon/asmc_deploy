@@ -2,11 +2,12 @@ const userModel = require('../models/userModel');
 
 
 const { tokenCache } = require('../cache/cache'); 
+const jsCookie = require('js-cookie');
 
 const authMiddleware = (level) => {
     
     return async (req, res, next) => {
-        const token = req.headers['x-user-token'];
+        const token = req.headers['x-user-token'] || req.cookies.authToken;
 
         if (!token) {
             return res.send({ type: 'error', message: '未找到授權，請重新登入。' });

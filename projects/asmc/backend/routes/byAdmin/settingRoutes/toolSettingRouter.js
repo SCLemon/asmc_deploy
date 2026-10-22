@@ -14,6 +14,11 @@ const authMiddleware = require('../../../middleware/auth.middleware');
 
 
 const { createFolder, deleteCloudItem } = require('../../../utils/cloudService')
+const fs = require('fs');
+const path = require('path');
+const { upload, autoCleanupTmp } = require('../../../config/multer.config');
+const { baseDir } = require('../../../config/pathConfig');
+const { format } = require('date-fns');
 
 // 獲取資料 For Setting -- ok
 router.get('/api/toolSetting/admin/getData', authMiddleware(10), async (req, res) => {
@@ -70,7 +75,7 @@ router.post('/api/toolSetting/admin/getSpecificData', authMiddleware(10), async 
             version: tool.version,
             status: tool.status,
             abstract: tool.abstract,
-            imgUrl: tool.imgUrl,
+            imgUrl: tool.iconToken ? `/api/cloud/user/download/${tool.iconToken}`: null,
         }
 
         return res.send({
@@ -288,7 +293,8 @@ router.get('/api/toolSetting/admin/getDataForView', authMiddleware(7), async (re
                 name: tool.name,
                 version: tool.version,
                 author: tool.author || '-',
-                abstract: tool.abstract
+                abstract: tool.abstract,
+                imgUrl: tool.iconToken ? `/api/cloud/user/download/${tool.iconToken}`: null,
             };
         }).reverse();
 
@@ -301,6 +307,101 @@ router.get('/api/toolSetting/admin/getDataForView', authMiddleware(7), async (re
     } catch (e) {
         console.error(e);
         return res.status(500).send({
+            type: 'error',
+            message: '伺服器錯誤，請洽客服人員協助。'
+        });
+    }
+});
+
+// 上傳 Icon 並以 iconToken 取代舊檔案
+router.post('/api/toolSetting/admin/uploadIcon', authMiddleware(10), upload.single('file'), autoCleanupTmp, async (req, res) => {
+    
+    const { targetTool } = req.body;
+
+    if (!req.file) {
+        return res.send({
+            type: 'error',
+            message: '檔案不可為空。'
+        });
+    }
+
+    try {
+        // 1. 確認工具是否存在
+        const tool = await toolModel.findOne({ token: targetTool });
+
+        if (!tool) {
+            return res.send({
+                type: 'error',
+                message: '工具不存在。'
+            });
+        }
+
+        // 2. 移動新上傳的檔案到正式儲存路徑
+        const uploadDir = path.join(baseDir, 'asmc');
+        await fs.promises.mkdir(uploadDir, { recursive: true });
+
+        const fileName = req.file.filename;
+        const filePath = path.join(uploadDir, fileName);
+        await fs.promises.rename(req.file.path, filePath);
+
+        const originalName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+        const newToken = uuidv4();
+
+        try {
+            // 3. 儲存新檔案至 cloudModel
+            const newFile = new cloudModel({
+                token: newToken,
+                name: originalName,
+                type: 'file',
+                parent: targetTool,
+                owner: req.user.token,
+                file: {
+                    path: filePath,
+                    size: req.file.size,
+                    mimeType: req.file.mimetype
+                },
+                createTime: format(new Date(), 'yyyy-MM-dd HH:mm:ss')
+            });
+
+            await newFile.save();
+
+            if (tool.iconToken) {
+                const oldFile = await cloudModel.findOne({ token: tool.iconToken });
+                if (oldFile) {
+                    if (oldFile.file?.path) {
+                        try {
+                            await fs.promises.unlink(oldFile.file.path);
+                        } catch (err) {
+                            console.warn('舊實體檔案不存在或刪除失敗：', err.message);
+                        }
+                    }
+                    await cloudModel.deleteOne({ token: tool.iconToken });
+                }
+            }
+            tool.iconToken = newToken;
+            await tool.save();
+
+            return res.send({
+                type: 'success',
+                data: {
+                    imgUrl:`/api/cloud/user/download/${newToken}`
+                },
+                message: '工具圖示更新成功。'
+            });
+
+        } catch (e) {
+
+            try {
+                await fs.promises.unlink(filePath);
+            } catch (unlinkError) {
+                console.log('刪除實體檔案失敗：', unlinkError);
+            }
+            throw e;
+        }
+
+    } catch (e) {
+        console.error(e);
+        return res.send({
             type: 'error',
             message: '伺服器錯誤，請洽客服人員協助。'
         });
