@@ -2,7 +2,6 @@ const userModel = require('../models/userModel');
 
 
 const { tokenCache } = require('../cache/cache'); 
-const jsCookie = require('js-cookie');
 
 const authMiddleware = (level) => {
     
