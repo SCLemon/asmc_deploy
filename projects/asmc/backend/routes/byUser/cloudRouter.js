@@ -28,20 +28,34 @@ router.post('/api/cloud/user/getData', authMiddleware(7), async (req, res) => {
     try {
         let condition = {};
 
+        // 統一排除 System 資料
+        const excludeSystem = { owner: { $ne: 'System' } };
+
         if (keyword) {
-            const nameQuery = { name: { $regex: keyword, $options: 'i' }, type: 'file' };
+            const nameQuery = {
+                name: { $regex: keyword, $options: 'i' },
+                type: 'file'
+            };
 
             if (parent) {
-
                 const hierarchy = await cloudModel.aggregate([
-                    { $match: { token: parent, type: 'folder' } },
+                    {
+                        $match: {
+                            token: parent,
+                            type: 'folder',
+                            ...excludeSystem
+                        }
+                    },
                     {
                         $graphLookup: {
                             from: 'clouds',
                             startWith: '$token',
                             connectFromField: 'token',
                             connectToField: 'parent',
-                            as: 'descendants'
+                            as: 'descendants',
+                            restrictSearchWithMatch: {
+                                owner: { $ne: 'System' }
+                            }
                         }
                     },
                     {
@@ -56,17 +70,29 @@ router.post('/api/cloud/user/getData', authMiddleware(7), async (req, res) => {
                     }
                 ]);
 
-                const targetTokens = hierarchy.length ? hierarchy[0].allTokens : [parent];
+                const targetTokens = hierarchy.length
+                    ? hierarchy[0].allTokens
+                    : [parent];
 
                 condition = {
                     parent: { $in: targetTokens },
+                    ...excludeSystem,
                     ...nameQuery
                 };
-            } 
-            else condition = nameQuery;
-        } 
-        else condition = { parent: parent || null };
+            } else {
+                condition = {
+                    ...excludeSystem,
+                    ...nameQuery
+                };
+            }
+        } else {
+            condition = {
+                parent: parent || null,
+                ...excludeSystem
+            };
+        }
 
+        // 查詢資料時排除 System
         const cloud = await cloudModel.find(condition)
             .select('token createTime name type file.size file.mimeType parent -_id')
             .lean();
@@ -75,8 +101,11 @@ router.post('/api/cloud/user/getData', authMiddleware(7), async (req, res) => {
         const files = [];
 
         cloud.forEach(item => {
-            if (item.type === 'folder') folders.push(item);
-            else if (item.type === 'file') files.push(item);
+            if (item.type === 'folder') {
+                folders.push(item);
+            } else if (item.type === 'file') {
+                files.push(item);
+            }
         });
 
         // 麵包屑路徑生成
@@ -89,7 +118,11 @@ router.post('/api/cloud/user/getData', authMiddleware(7), async (req, res) => {
             let currentToken = parent;
 
             while (currentToken) {
-                const folder = await cloudModel.findOne({ token: currentToken, type: 'folder' })
+                const folder = await cloudModel.findOne({
+                    token: currentToken,
+                    type: 'folder',
+                    ...excludeSystem
+                })
                     .select('token name parent -_id')
                     .lean();
 
@@ -113,9 +146,9 @@ router.post('/api/cloud/user/getData', authMiddleware(7), async (req, res) => {
             message: 'Cloud 資料獲取成功！'
         });
 
-    } 
-    catch (e) {
+    } catch (e) {
         console.error(e);
+
         return res.send({
             type: 'error',
             data: { folders: [], files: [] },
@@ -124,6 +157,7 @@ router.post('/api/cloud/user/getData', authMiddleware(7), async (req, res) => {
         });
     }
 });
+
 
 // 上傳檔案
 router.post('/api/cloud/user/upload', authMiddleware(7), upload.single('file'), autoCleanupTmp, async (req, res) => {
