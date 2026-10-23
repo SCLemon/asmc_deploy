@@ -425,6 +425,7 @@ router.get('/api/cloud/user/download/:targetCloud', authMiddleware(7), async (re
 
             res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Disposition');
             res.setHeader('Content-Length', stat.size);
+            res.setHeader('Cache-Control', 'private, max-age=259200');
 
             return res.download(cloud.file.path, cloud.name);
         }
