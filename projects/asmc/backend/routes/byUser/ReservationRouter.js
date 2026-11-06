@@ -19,17 +19,18 @@ const labMiddleware = require('../../middleware/lab.middleware');
 const { LimitMinute } = require('../globalConfig/reservationConfig')
 
 // 獲取儀器列表
-router.get('/api/reservation/user/getData', authMiddleware(0), labMiddleware, async (req, res) => {
+router.get('/api/reservation/user/getData', authMiddleware(1), labMiddleware, async (req, res) => {
 
     try {
         const equipments = await equipmentModel.find({ isDeleted: false, status: true, users: req.user.token })
+
         const output = equipments.map((equipment) =>{
             return {
                 value: equipment.token,
                 label: equipment.name,
             }
         })
-
+        
         return res.send({
             type:'success',
             data: output,
@@ -46,7 +47,7 @@ router.get('/api/reservation/user/getData', authMiddleware(0), labMiddleware, as
 });
 
 // 獲取管理員資料
-router.post('/api/reservation/user/getSuperUserInfo', authMiddleware(0), labMiddleware, async (req, res) => {
+router.post('/api/reservation/user/getSuperUserInfo', authMiddleware(1), labMiddleware, async (req, res) => {
 
     const { targetEquipment } = req.body;
 
@@ -91,11 +92,11 @@ router.post('/api/reservation/user/getSuperUserInfo', authMiddleware(0), labMidd
 });
 
 // 獲取預約狀態
-router.post('/api/reservation/user/getSpecificReservationData', authMiddleware(0), labMiddleware, async (req, res) => {
+router.post('/api/reservation/user/getSpecificReservationData', authMiddleware(1), labMiddleware, async (req, res) => {
 
     const { targetEquipment, date } = req.body;
 
-    if (!targetEquipment || !date || date.length !== 2) {
+    if (!targetEquipment || !Array.isArray(date) || date.length !== 2) {
         return res.send({
             type: 'error',
             data: [],
@@ -104,7 +105,6 @@ router.post('/api/reservation/user/getSpecificReservationData', authMiddleware(0
     }
 
     try {
-
 
         const equipment = await equipmentModel.findOne({
             token: targetEquipment,
@@ -121,31 +121,72 @@ router.post('/api/reservation/user/getSpecificReservationData', authMiddleware(0
             });
         }
 
-        const userTokens = [
-            ...new Set(equipment.reservation.map(item => item.user).filter(Boolean))
-        ];
+        // 判斷是否為同實驗室使用者
+        const isLabUser = req.user.lab == equipment.asset;
 
+        // 取得今天日期
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
 
-        const users = await userModel.find({
-            token: { $in: userTokens }
-        }).select('token name').lean();
+        // 一般使用者最多查詢至 T+6
+        const maxDate = new Date(today);
+        maxDate.setDate(maxDate.getDate() + 6);
 
-
-        const userMap = new Map(users.map(user => [user.token, user.name]));
-
-
+        // 前端傳入日期
         const startDate = new Date(date[0]);
         const endDate = new Date(date[1]);
+
+        if (
+            isNaN(startDate.getTime()) ||
+            isNaN(endDate.getTime())
+        ) {
+            return res.send({
+                type: 'error',
+                data: [],
+                message: '日期格式錯誤。'
+            });
+        }
 
         startDate.setHours(0, 0, 0, 0);
         endDate.setHours(0, 0, 0, 0);
 
-        if (req.user.lab == equipment.asset) {
-            // 提前開放一天
-            endDate.setDate(endDate.getDate() + 1);
+        // 驗證前端傳入的日期範圍
+        if (
+            startDate < today ||
+            endDate > maxDate ||
+            startDate > endDate
+        ) {
+            return res.send({
+                type: 'error',
+                data: [],
+                message: '僅能查詢今天至未來六天的預約資料。'
+            });
         }
 
+        // 建立實際查詢結束日期
+        const queryEndDate = new Date(endDate);
 
+        // 同 Lab 使用者額外提前開放一天
+        if (isLabUser) {
+            queryEndDate.setDate(queryEndDate.getDate() + 1);
+        }
+
+        // 取得預約使用者 Token
+        const userTokens = [
+            ...new Set(equipment.reservation.map(item => item.user).filter(Boolean))
+        ];
+
+        // 查詢使用者名稱
+        const users = await userModel.find({
+            token: { $in: userTokens }
+        }).select('token name').lean();
+
+        // 建立使用者對照表
+        const userMap = new Map(
+            users.map(user => [user.token, user.name])
+        );
+
+        // 建立預約資料對照表
         const reservationMap = {};
 
         equipment.reservation.forEach((item) => {
@@ -164,15 +205,12 @@ router.post('/api/reservation/user/getSpecificReservationData', authMiddleware(0
 
         });
 
-
         const weekList = ['日', '一', '二', '三', '四', '五', '六'];
 
         const output = [];
         const currentDate = new Date(startDate);
 
-        let dayIndex = 0;
-
-        while (currentDate <= endDate) {
+        while (currentDate <= queryEndDate) {
 
             const year = currentDate.getFullYear();
 
@@ -186,9 +224,13 @@ router.post('/api/reservation/user/getSpecificReservationData', authMiddleware(0
 
             const displayDay = currentDate.getDate();
 
+            // 判斷是否為 Lab 額外提前開放的日期
+            const isExtraDay = (
+                isLabUser &&
+                currentDate.getTime() === queryEndDate.getTime()
+            );
 
-            let title = `${displayMonth}/${displayDay} (${dayIndex == 7 ? '提前開放' : weekList[currentDate.getDay()]})`;
-
+            const title = `${displayMonth}/${displayDay} (${isExtraDay ? '提前開放' : weekList[currentDate.getDay()]})`;
 
             const date_period = [];
 
@@ -196,9 +238,7 @@ router.post('/api/reservation/user/getSpecificReservationData', authMiddleware(0
 
                 const period = `${String(hour).padStart(2, '0')}:00`;
 
-
                 date_period.push(
-
                     reservationMap[dateString]?.[period] ||
                     {
                         reserveId: '',
@@ -207,15 +247,17 @@ router.post('/api/reservation/user/getSpecificReservationData', authMiddleware(0
                         isMine: false,
                         userName: ''
                     }
-
                 );
 
             }
 
-            output.push({ title, date: dateString, date_period });
-            currentDate.setDate(currentDate.getDate() + 1);
+            output.push({
+                title,
+                date: dateString,
+                date_period
+            });
 
-            dayIndex++;
+            currentDate.setDate(currentDate.getDate() + 1);
 
         }
 
@@ -225,11 +267,11 @@ router.post('/api/reservation/user/getSpecificReservationData', authMiddleware(0
             message: '儀器預約資料獲取成功！'
         });
 
-
     }
     catch (e) {
 
         console.log(e);
+
         return res.send({
             type: 'error',
             data: [],
@@ -240,8 +282,10 @@ router.post('/api/reservation/user/getSpecificReservationData', authMiddleware(0
 
 });
 
+
+
 // 預約或取消預約
-router.post('/api/reservation/user/handleReserve', authMiddleware(0), labMiddleware, async (req, res) => {
+router.post('/api/reservation/user/handleReserve', authMiddleware(1), labMiddleware, async (req, res) => {
 
     const { targetEquipment, reserveId, method, reserve_date, reserve_period } = req.body;
 

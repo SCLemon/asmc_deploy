@@ -14,7 +14,7 @@ const labModel = require('../../models/labModel');
 
 
 // 獲取特定使用者資料
-router.get('/api/profile/user/getData', authMiddleware(0), async (req, res) => {
+router.get('/api/profile/user/getData', authMiddleware(1), async (req, res) => {
 
     try {
         const user = req.user;
@@ -55,7 +55,7 @@ router.get('/api/profile/user/getData', authMiddleware(0), async (req, res) => {
 });
 
 // 修改用戶
-router.post('/api/profile/user/revise', authMiddleware(0), async (req, res) => {
+router.post('/api/profile/user/revise', authMiddleware(1), async (req, res) => {
 
     let { name, password, phoneNumber, mailAddress, idCard } = req.body;
     

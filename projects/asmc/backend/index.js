@@ -78,6 +78,9 @@ app.use(soyalByAdminRouter);
 const equipmentSettingBySuperUserRouter = require('./routes/bySuperUser/settingRoutes/equipmentSettingRouter');
 app.use(equipmentSettingBySuperUserRouter);
 
+const equipmentRecordBySuperUserRouter = require('./routes/bySuperUser/settingRoutes/equipmentRecordRouter');
+app.use(equipmentRecordBySuperUserRouter);
+
 // by User
 const profileRouter = require('./routes/byUser/profileRouter');
 app.use(profileRouter);
@@ -102,6 +105,9 @@ app.use(experimentRecordByUserRouter)
 
 const affidavitByUserRouter = require('./routes/byUser/settingRoutes/affidavitRouter')
 app.use(affidavitByUserRouter)
+
+const equipmentRecordByUserRouter = require('./routes/byUser/settingRoutes/equipmentRecordRouter');
+app.use(equipmentRecordByUserRouter );
 
 // global
 const settingsRouter = require('./routes/settingsRouter');
