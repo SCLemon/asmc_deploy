@@ -37,12 +37,17 @@ router.get('/api/experimentRecords/user/getData', authMiddleware(7), async (req,
 
         const output = experimentRecords.map((experimentRecord) => {
             const results = experimentRecord.recipe.findLast(i => i.key == 9)?.formData ?? null;
-            let resultStr = results ? `${results.Ion ?? '-'}, ${results.Vth ?? '-'}, ${results.SS ?? '-'}, ${results.contact_type ?? '-'} @ [${results.conditions ?? '-'}]` : '-'
+            let resultStr = results ? `${results.Ion ?? '-'}, ${(results.Ion_Ioff.toExponential(0))?? '-'}, ${results.Vth ?? '-'}, ${results.SS ?? '-'}  @ [${results.conditions ?? '-'}]` : '-'
+            
+            let tags = experimentRecord.isFinished ? [{ type: 'primary', label: '已完成'}] : [{ type: 'danger', label: '未完成'}]
+            experimentRecord.tags.forEach((item) =>{ tags.push({ type: 'info', label: item }) })
+
             return {
                 createTime: format(new Date(experimentRecord.createTime), 'yy.MM.dd'),
                 token: experimentRecord.token,
                 name: experimentRecord.name,
                 results: resultStr,
+                tags,
                 owner: userMap.get(experimentRecord.owner) || '',
                 isMine: experimentRecord.owner == req.user.token
             };
@@ -241,6 +246,8 @@ router.post('/api/experimentRecords/user/getSpecificData', authMiddleware(7), as
             dataSet: record.recipe,
             period: record.period || [],
             abstract: record.abstract,
+            tags: record.tags,
+            isFinished: record.isFinished,
             isMine: record.owner == req.user.token,
         }
 
@@ -305,7 +312,7 @@ router.put('/api/experimentRecords/user/rename', authMiddleware(7), async (req, 
 // save
 router.post('/api/experimentRecords/user/save', authMiddleware(7), async (req, res) => {
 
-    let { targetRecord, dataSet, abstract, period } = req.body;
+    let { targetRecord, dataSet, abstract, period, tags, isFinished } = req.body;
 
     if (!targetRecord) {
         return res.send({
@@ -322,6 +329,8 @@ router.post('/api/experimentRecords/user/save', authMiddleware(7), async (req, r
         record.recipe = dataSet;
         record.abstract = abstract;
         record.period = period;
+        record.tags = tags;
+        record.isFinished = isFinished;
 
         await record.save();
 
