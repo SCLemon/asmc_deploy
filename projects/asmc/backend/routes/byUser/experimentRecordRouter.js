@@ -40,7 +40,7 @@ router.get('/api/experimentRecords/user/getData', authMiddleware(7), async (req,
             let resultStr = results ? `${results.Ion ?? '-'}, ${(results.Ion_Ioff.toExponential(0))?? '-'}, ${results.Vth ?? '-'}, ${results.SS ?? '-'}  @ [${results.conditions ?? '-'}]` : '-'
             
             let tags = experimentRecord.isFinished ? [{ type: 'primary', label: '已完成'}] : [{ type: 'danger', label: '未完成'}]
-            experimentRecord.tags.forEach((item) =>{ tags.push({ type: 'info', label: item }) })
+            experimentRecord.tags?.forEach((item) =>{ tags.push({ type: 'info', label: item }) })
 
             return {
                 createTime: format(new Date(experimentRecord.createTime), 'yy.MM.dd'),
