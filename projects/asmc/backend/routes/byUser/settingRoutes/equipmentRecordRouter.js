@@ -115,8 +115,10 @@ router.post('/api/equipmentRecord/user/getQuestions', authMiddleware(1), async (
 
 // 儲存儀器填寫紀錄
 router.post('/api/equipmentRecord/user/saveData', authMiddleware(1), async (req, res) => {
-
+    
     try {
+
+        if(!(req.user?.affidavit?.status)) return res.send({ type:'error', message:'切結書尚未簽核。'});
 
         const { targetEquipment, questions } = req.body;
 
